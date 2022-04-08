@@ -1,7 +1,7 @@
 #include <Encoder.h>
 #include <Wire.h>
 
-#define SLAVE_ADDRESS 0x04 //Adress of this arduino board acting as a slave for the pi board
+#define SLAVE_ADDRESS 0x20 //Adress of this arduino board acting as a slave for the pi board
 
 int TapeDetected; //Tape detected variable Number(either 1 or 0) is defined as global variable
 double distance; //Distance Variable Number is defined as global variable
