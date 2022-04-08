@@ -1,6 +1,11 @@
 #include <Encoder.h>
 #include <Wire.h>
 
+#define SLAVE_ADDRESS 0x04 //Adress of this arduino board acting as a slave for the pi board
+
+int TapeDetected; //Tape detected variable Number(either 1 or 0) is defined as global variable
+double distance; //Distance Variable Number is defined as global variable
+double CamPhi; //Angle dtetcted by camera is defined as global variable
 
 // Motor constants
 const int D2 = 4;
@@ -249,20 +254,38 @@ void setup() {
   digitalWrite(MOTOR1_SIGN, LOW);
   digitalWrite(MOTOR2_SIGN, HIGH);
 
-  Serial.begin(9600);
-  Wire.begin(0x08);
-  Serial.println("Performing encoder test...");
+   Serial.begin(9600); // start serial for output on serial monitor of the arduino board
+
+  // initialize i2c as slave
+  Wire.begin(SLAVE_ADDRESS);
+
+  // define callbacks for i2c communication
+  Wire.onReceive(receiveData);
 
 
 }
 
 void loop() {
 
-tapeDetect();
-CenterOntape()
-DriveTotape();
+tapeDetect();   //need "tape detected" from PI
+
+CenterOntape()  //need PHI ANGLE from PI
+DriveTotape(); //Need distance from PI
 EndTape();
   
 
+
+}
+
+// callback for received data
+void receiveData(int byteCount) {
+
+  while (Wire.available()) { // While there's available data read it to the arduino using the wire library
+    quadrantNum = Wire.read(); //Read the data
+    Serial.print("data received: "); //Print the received data to the serial monitor
+    Serial.println(TapeDetected);
+    Serial.println(distance);
+    Serial.println(CamPhi);
+  }
 
 }
