@@ -33,6 +33,7 @@ double angular_velocity_2 = 0;
 
 double rho = 0;
 double phi = 0;
+double realPhi;
 //radius of wheel
 double R = .255;
 //distance between wheels
@@ -45,7 +46,9 @@ bool STOP = false;
 double desired_phi;
 bool TAPE;
 bool calibrate;
-
+int storedVal;
+int counter;
+double currentMillis;
 
 
 
@@ -58,6 +61,10 @@ Encoder wheel_2(3, 5);
 double deg_Phi( double deg) {
 
   desired_phi = (D) * 2 * 3.1415926 * (deg / 360);
+
+  if( desired_phi < 0){
+    desired_phi = desired_phi * -1;
+  }
 
   return desired_phi;
 }
@@ -126,43 +133,26 @@ void drive_straight(double feet) {
 
 }
 void rotate_right_tape( ) {
-  TAPE = false;
+  
   SPEED = 50;
 
 
   digitalWrite(MOTOR1_SIGN, LOW);
   digitalWrite(MOTOR2_SIGN, LOW);
-  while (TAPE == false) {
-    if (tapeDetected != 0) {
-      TAPE == true;
-      SPEED = 0;
-    }
 
 
-  }
-  SPEED = 50;
-  wheel_1.write(0);
-  wheel_2.write(0);
-  while (TAPE == true) {
-    calc_stats();
 
-
+  while (tapeDetected == 0) {
     analogWrite(MOTOR1_SPEED, SPEED);
     analogWrite(MOTOR2_SPEED, SPEED);
 
 
-
-    if (camPhi > -deg_Phi(5) || camPhi < deg_Phi(5)   ) {
-      SPEED = 0;
-      wheel_1.write(0);
-      wheel_2.write(0);
-      RUN = false;
-      rampDown = false;
-      analogWrite(MOTOR1_SPEED, 0);
-      analogWrite(MOTOR2_SPEED, 0);
-
-    }
   }
+
+  
+
+
+  
 }
 
 // right turn = clockwise = negative angle
@@ -176,6 +166,7 @@ void rotate_right( double right_turn) {
 
   while (RUN == true) {
     calc_stats();
+    
 
 
     analogWrite(MOTOR1_SPEED, SPEED);
@@ -209,7 +200,7 @@ void rotate_left( double left_turn) {
   digitalWrite(MOTOR2_SIGN, HIGH);
   while (RUN == true) {
     calc_stats();
-    Serial.print(phi);
+    Serial.print(new_angular_position_2);
     Serial.print(",");
     //Serial.print(new_angular_position_2);
 
@@ -250,6 +241,7 @@ void calc_stats() {
   long new_position_2 = wheel_2.read();
 
   if (new_position == old_position) {
+    
     // Don't need to update any stats as nothing has changed
     return;
   }
@@ -266,11 +258,17 @@ void calc_stats() {
   d_angular_position_2 = new_angular_position_2 - old_angular_position_2;
 
 
-  rho =   R * ((new_angular_position + new_angular_position_2) / 2 );
+  rho =   -R * ((new_angular_position + new_angular_position_2) / 2 );
   phi =   R * ((new_angular_position - new_angular_position_2) / D);
 
   old_angular_position = new_angular_position;
   old_angular_position_2 = new_angular_position_2;
+  Serial.println(rho);
+
+  
+  
+
+      
 
 
 
@@ -281,22 +279,23 @@ void calc_stats() {
 
 
 void centerTape() {
-  calibrate = false;
-  if (camPhi < 0 && calibrate == false) {
+  calibrate = true;
+  if(camPhi < 0 && calibrate == true ){
+     
+  rotate_right(deg_Phi(camPhi));
+   calibrate = false;
 
-    rotate_left(deg_Phi(camPhi));
-    calibrate = true;
-  } else {
-    rotate_right(deg_Phi(camPhi));
-    calibrate = true;
-
-  }
-
+      
+    }
+    if (camPhi > 0 && calibrate == true) {
+      rotate_left(deg_Phi(camPhi));
+       calibrate = false;
+    }
 }
 
 void driveTape() {
 
-  drive_straight(4);
+
 
 
 
@@ -309,9 +308,9 @@ void endTape() {
   digitalWrite(MOTOR2_SIGN, HIGH);
   analogWrite(MOTOR1_SPEED, 30);
   analogWrite(MOTOR2_SPEED, 30);
-  if(distance < 20){
-drive_straight(4.5);
-    
+  if (distance < 20) {
+    drive_straight(4.5);
+
   }
 
 }
@@ -343,32 +342,73 @@ void setup() {
 
 void loop() {
 
-  //rotate_right_tape();   //need "tape detected" from PI
+
+
+
+//calc_stats();
+
+
+  rotate_right(deg_Phi(90));   //need "tape detected" from PI
+  currentMillis = millis();
+  while (currentMillis + 2000 > millis());
+  drive_straight(8);
+  currentMillis = millis();
+  while (currentMillis + 2000 > millis());
+  rotate_right(deg_Phi(270));   //need "tape detected" from PI
+  currentMillis = millis();
+  while (currentMillis + 2000 > millis());
+  drive_straight(8);
+  currentMillis = millis();
+  while (currentMillis + 2000 > millis());
+  //centerTape();
+  
+
+  //Serial.println("CamPhi");
+      //Serial.println(storedVal);
 
   //centerTape();  //need PHI ANGLE from PI
   //driveTape(); //Need distance from PI
   //endTape();
-  Serial.print(tapeDetected);
-  Serial.print("\n");
-  Serial.print(distance);
-  Serial.print("\n");
-  Serial.print(camPhi);
-  Serial.print("\n");
+  
+
 
 
 }
 
 // callback for received data
 void receiveData(int byteCount) {
+  counter++;
+
+  
 
   while (Wire.available()) { // While there's available data read it to the arduino using the wire library
-    tapeDetected = Wire.read();
-    distance = Wire.read();
-    camPhi = Wire.read();//Read the data
+    storedVal = Wire.read();
+    
+    if (storedVal == 157) {
+      counter = 0;
+      
+      
+    }
+    if (counter == 1 ) {
+      distance = storedVal;
+      
+    }
+    if (counter == 2 ) {
+      tapeDetected = storedVal;
+      
+    }
+    if (counter == 3) {
+      camPhi = storedVal;
+      
+      
+    }
+    
+
+    //distance = Wire.read();
+    //camPhi = Wire.read();//Read the data
     Serial.print("data received: "); //Print the received data to the serial monitor
-    Serial.println(tapeDetected);
-    Serial.println(distance);
     Serial.println(camPhi);
+     
   }
 
 }
