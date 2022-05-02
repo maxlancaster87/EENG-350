@@ -1,0 +1,360 @@
+#include <Encoder.h>
+#include <Wire.h>
+
+#define SLAVE_ADDRESS 0x20 //Adress of this arduino board acting as a slave for the pi board
+
+int tapeDetected; //Tape detected variable Number(either 1 or 0) is defined as global variable
+double distance; //Distance Variable Number is defined as global variable
+double camPhi; //Angle dtetcted by camera is defined as global variable
+
+// Motor constants
+const int D2 = 4;
+const int STATUS_FLAG = 12;
+const int MOTOR1_SIGN = 7;
+const int MOTOR2_SIGN = 8;
+const int MOTOR1_SPEED = 9;
+const int MOTOR2_SPEED = 10;
+
+\
+
+// Data globals
+long old_position = 0;
+double old_angular_position = 0;
+double new_angular_position = 0;
+double d_angular_position = 0;
+double angular_velocity = 0;
+
+
+long old_position_2 = 0;
+double old_angular_position_2 = 0;
+double new_angular_position_2 = 0;
+double d_angular_position_2 = 0;
+double angular_velocity_2 = 0;
+
+double rho = 0;
+double phi = 0;
+double realPhi;
+//radius of wheel
+double R = .255;
+//distance between wheels
+double D = .96;
+bool RUN = true;
+double radTurn = 0;
+double SPEED;
+bool rampDown = false;
+bool STOP = false;
+double desired_phi;
+bool TAPE;
+bool calibrate;
+int storedVal;
+int counter;
+double currentMillis;
+int sector = 7;
+int stopTime;
+int first = 0;
+
+
+
+
+// Encoder
+Encoder wheel_1(2, 6);
+Encoder wheel_2(3, 5);
+
+double deg_Phi( double deg) {
+
+  desired_phi = (D) * 2 * 3.1415926 * (deg / 360);
+
+  if ( desired_phi < 0) {
+    desired_phi = desired_phi * -1;
+  }
+
+  return desired_phi;
+}
+
+
+
+
+void drive_straight() {
+  currentMillis = millis();
+  while (currentMillis + 600 > millis()) {
+
+    digitalWrite(MOTOR1_SIGN, LOW);
+    digitalWrite(MOTOR2_SIGN, HIGH);
+
+    SPEED = 100;
+
+    calc_stats();
+
+    analogWrite(MOTOR1_SPEED, SPEED);
+    analogWrite(MOTOR2_SPEED, SPEED);
+
+
+
+   
+
+  }
+   currentMillis = millis();
+  while (currentMillis + 2500 > millis()){
+    analogWrite(MOTOR1_SPEED, 0);
+    analogWrite(MOTOR2_SPEED, 0);
+
+  }
+
+}
+
+
+void drive_straight_first() {
+  currentMillis = millis();
+  while (currentMillis + 1200 > millis()) {
+
+    digitalWrite(MOTOR1_SIGN, LOW);
+    digitalWrite(MOTOR2_SIGN, HIGH);
+
+    SPEED = 100;
+
+    calc_stats();
+
+    analogWrite(MOTOR1_SPEED, SPEED);
+    analogWrite(MOTOR2_SPEED, SPEED);
+
+
+
+   
+
+  }
+   currentMillis = millis();
+  while (currentMillis + 2500 > millis()){
+    analogWrite(MOTOR1_SPEED, 0);
+    analogWrite(MOTOR2_SPEED, 0);
+
+  }
+
+}
+
+
+
+void rotate_right_long() {
+  currentMillis = millis();
+  while (currentMillis + 500 > millis()) {
+
+    SPEED = 100;
+
+
+    digitalWrite(MOTOR1_SIGN, LOW);
+    digitalWrite(MOTOR2_SIGN, LOW);
+
+
+
+
+    analogWrite(MOTOR1_SPEED, SPEED);
+    analogWrite(MOTOR2_SPEED, SPEED);
+
+
+
+  }
+  currentMillis = millis();
+  while (currentMillis + 2500 > millis()){
+    analogWrite(MOTOR1_SPEED, 0);
+    analogWrite(MOTOR2_SPEED, 0);
+
+  }
+}
+
+
+
+
+// right turn = clockwise = negative angle
+void rotate_right() {
+  currentMillis = millis();
+  while (currentMillis + 200 > millis()) {
+
+    SPEED = 100;
+
+
+    digitalWrite(MOTOR1_SIGN, LOW);
+    digitalWrite(MOTOR2_SIGN, LOW);
+
+
+
+
+    analogWrite(MOTOR1_SPEED, SPEED);
+    analogWrite(MOTOR2_SPEED, SPEED);
+
+
+
+  }
+  currentMillis = millis();
+  while (currentMillis + 2500 > millis()){
+    analogWrite(MOTOR1_SPEED, 0);
+    analogWrite(MOTOR2_SPEED, 0);
+
+  }
+}
+// left turn = counterclockwise = positive angle
+void rotate_left() {
+  currentMillis = millis();
+  while (currentMillis + 200 > millis()) {
+
+
+    SPEED = 100;
+    digitalWrite(MOTOR1_SIGN, HIGH);
+    digitalWrite(MOTOR2_SIGN, HIGH);
+
+    calc_stats();
+
+
+    //Serial.println(",");
+
+
+
+
+    analogWrite(MOTOR1_SPEED, SPEED);
+    analogWrite(MOTOR2_SPEED, SPEED);
+
+
+  }
+  currentMillis = millis();
+  while (currentMillis + 2500 > millis()){
+    analogWrite(MOTOR1_SPEED, 0);
+    analogWrite(MOTOR2_SPEED, 0);
+
+  }
+}
+
+
+void waitTime(int stopTime) {
+
+
+
+
+
+
+
+}
+
+
+void calc_stats() {
+  long new_position = wheel_1.read();
+  long new_position_2 = wheel_2.read();
+
+  if (new_position == old_position) {
+
+    // Don't need to update any stats as nothing has changed
+    return;
+  }
+
+  old_position = new_position;
+  old_position_2 = new_position_2;
+
+  new_angular_position = (2.00 * 3.1415926 * new_position) / 3200.0;
+  new_angular_position_2 = (-2.00 * 3.1415926 * new_position_2) / 3200.0;
+
+  d_angular_position = new_angular_position - old_angular_position;
+
+
+  d_angular_position_2 = new_angular_position_2 - old_angular_position_2;
+
+
+  rho =   -R * ((new_angular_position + new_angular_position_2) / 2 );
+  phi =   R * ((new_angular_position - new_angular_position_2) / D);
+
+  old_angular_position = new_angular_position;
+  old_angular_position_2 = new_angular_position_2;
+  Serial.println(rho);
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+void setup() {
+  pinMode(D2, OUTPUT);
+
+  pinMode(MOTOR1_SIGN, OUTPUT);
+  pinMode(MOTOR2_SIGN, OUTPUT);
+
+  pinMode(MOTOR1_SPEED, OUTPUT);
+  pinMode(MOTOR2_SPEED, OUTPUT);
+
+  pinMode(STATUS_FLAG, INPUT);
+
+  digitalWrite(D2, HIGH);
+  digitalWrite(MOTOR1_SIGN, LOW);
+  digitalWrite(MOTOR2_SIGN, HIGH);
+
+  Serial.begin(9600); // start serial for output on serial monitor of the arduino board
+
+  // initialize i2c as slave
+  Wire.begin(SLAVE_ADDRESS);
+
+  // define callbacks for i2c communication
+  Wire.onReceive(receiveData);
+
+
+}
+
+void loop() {
+
+  while (true) {
+
+    if (sector == 0) {
+      rotate_left();
+      waitTime(1);
+    }
+    else if (sector == 1) {
+      if (first == 0){
+        drive_straight();
+        first = 1;
+      }
+      drive_straight();
+
+    }
+
+    else if (sector == 2) {
+      rotate_right();
+
+    } else if(sector = 7) {
+      rotate_right_long();
+
+    }
+
+
+
+  }
+
+
+
+
+
+}
+
+// callback for received data
+void receiveData(int byteCount) {
+
+
+  while (Wire.available()) { // While there's available data read it to the arduino using the wire library
+    sector = Wire.read();
+
+
+    //distance = Wire.read();
+    //camPhi = Wire.read();//Read the data
+    Serial.print("data received: "); //Print the received data to the serial monitor
+    Serial.println(sector);
+
+
+
+
+
+
+
+  }
+
+}
